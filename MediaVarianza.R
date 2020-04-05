@@ -1,50 +1,80 @@
 
+
+################################################################################
+########### RUTINA PARA GENERAR UN GRAFICO DE ENTORNO MEDIA VARIANZA  ##########
+################################################################################
+
+
+
+# Tidyverse es un paquete
+# Previo a ejecutar la linea 4, tienen que instalar el paquete.
+# install.packages("tidyverse")   # Descomentar esta linea para instalar el paquete
 library(tidyverse)
 
-# Carga inicial de parametros
+
+# 1) PARAMETROS DE CARGA -------------------------------------
+
+## datos estadisticos de los activos que usaremos:
 data <- tibble(
-  bond = c("A","B"),
-  R = c(0.15, 0.03),
-  V = c(0.08, 0.05)
+  activo = c("A","B"),
+  R      = c(0.15, 0.03),
+  V      = c(0.05, 0.03)
 )
 
-# Portafolios que armamos para el mismo coeficiente de correlacon 
-n <- 50
+## Cantidad de Portafolios que vamos a crear para el mismo coeficiente de correlacion:
+n <- 3
 
-# Matriz de tenencias
+## Cantidad de coeficientes de correlacion que vamos a graficar:
+cantcoefcorr <- 3   # Minimo 2!!
+
+
+# 2) CODIGO  -------------------------------------
+
+
+# Construccion de Matriz de tenencias para las "n" cantidades de posibilidades
 w <-  tibble(
   wa = seq(from = 1, to = 0, by = -(1/(n-1))),
   wb = seq(from = 0, to = 1, by = (1/(n-1)))
 )
 
 
-# Confeccion de la matriz grande!
-MasterData <- w
+# La "pipa" es el operador "%>%" y se lee "y entonces".
+# La funcion "mutate" sirve para crear o modificar columnas.
+# Agregamos 5 columnas
 
-MasterData$ERa <- data$R[1]
-MasterData$ERb <- data$R[2]
-
-MasterData <- MasterData %>% 
+MasterData <- w %>% 
   mutate(
-    ERp = wa * ERa + wb * ERb,
+    ERa  = data$R[1],
+    ERb  = data$R[2],
+    ERp  = wa * ERa + wb * ERb,
     VarA = data$V[1],
-    VarB = data$V[2],
-    escenario = seq(from= 1, to = n, by = 1)
-  )
+    VarB = data$V[2]
+    )
 
-coefcorrelacion <- seq(from = -1, to = 1,  by = 0.125)
+
+# Armo un vector de coeficientes de correlacion
+# Uso la funcion "seq" para ir desde -1 a 1 por un factor que va a determinar
+# cuantos escenarios vamos a construir en base al parametro "cantcoefcorr".
+
+factor_correlacion <- cantcoefcorr / 3
+coefcorrelacion <- seq(from = -1, to = 1,  by = 2/(cantcoefcorr -1))
 length(coefcorrelacion)
 
+
+# Ahora tenemos que calcular las varianzas del portafolio.
+# En vez de armar una columna en MasterData para cada coeficiente de correlacion,
+# vamos a hacer un loop que recorra todo el vector coefcorrelacion y que 
+# vaya calculando la varianza del portafolio. 
 
 j <- 0
 k <- 0
 for (i in coefcorrelacion) {
   
   k <- k+1
-  # i <- -0.75
+  # i <- 0
   # print(i) 
   
-  ColName <- paste0("A", k)
+  ColName <- paste0("Escenario", k)
   
   # i <- 0
   MasterData <- MasterData %>% 
@@ -52,21 +82,35 @@ for (i in coefcorrelacion) {
       ColName = (wa^2* VarA)+ (wb^2 * VarB) + (2 * wa * wb * i * VarA^(1/2) * VarB^(1/2) )
     )
   
-  colnames(MasterData)[9+j] <- ColName    
+  colnames(MasterData)[8+j] <- ColName    
   
   j <- j+1
 }
 
+# Notar como quedó la base
+# Tenemos varias columnas "escenario" como coefcienes hayamos creado.
+print(MasterData)
+
+# Para graficar, vamos a armar la base en otro formato.
+# la funcion gather junta columnas y las guarda como filas
+# el siguiente resultado es una gran matriz con 3 columnas:
+# ERp, varRp y  que escenario es (dado por una A + un numero)
+# Fijense que tienen todos los escenarios uno abajo del otro,
+# identificados con la columna "variable".
 
 data_plot <- MasterData %>%
-  select(-wa, -wb, -ERa, -ERb, -VarA, -VarB, -escenario) %>%
-  gather(-ERp, key = "variable", value = "VarRp")
+  select(-wa, -wb, -ERa, -ERb, -VarA, -VarB) %>%    # descartamos variables que no nos interesan
+  gather(-ERp, key = "escenario", value = "VarRp") %>%    # reordenamos la matriz
+  select(escenario, ERp, VarRp)
 
 
-ggplot()+
+
+# por ultimo, a graficar!
+
+ggplot()+  
   geom_point(
     data        = data_plot,
-    mapping     = aes(x=VarRp, y=ERp, color=variable),
+    mapping     = aes(x=VarRp, y=ERp, color=escenario),
     show.legend = FALSE 
   ) +
   geom_point(
