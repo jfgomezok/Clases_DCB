@@ -22,10 +22,10 @@ data <- tibble(
 )
 
 ## Cantidad de Portafolios que vamos a crear para el mismo coeficiente de correlacion:
-n <- 3
+n <- 15
 
 ## Cantidad de coeficientes de correlacion que vamos a graficar:
-cantcoefcorr <- 3   # Minimo 2!!
+cantcoefcorr <- 100   # Minimo 2!!
 
 
 # 2) CODIGO  -------------------------------------
@@ -34,7 +34,7 @@ cantcoefcorr <- 3   # Minimo 2!!
 # Construccion de Matriz de tenencias para las "n" cantidades de posibilidades
 w <-  tibble(
   wa = seq(from = 1, to = 0, by = -(1/(n-1))),
-  wb = seq(from = 0, to = 1, by = (1/(n-1)))
+  wb = 1 - wa
 )
 
 
@@ -52,12 +52,20 @@ MasterData <- w %>%
     )
 
 
+
+
+
+
 # Armo un vector de coeficientes de correlacion
 # Uso la funcion "seq" para ir desde -1 a 1 por un factor que va a determinar
 # cuantos escenarios vamos a construir en base al parametro "cantcoefcorr".
 
-factor_correlacion <- cantcoefcorr / 3
-coefcorrelacion <- seq(from = -1, to = 1,  by = 2/(cantcoefcorr -1))
+coefcorrelacion <- seq(
+  from = -1,
+  to   = 1,
+  by   = 2/(cantcoefcorr -1)
+)
+
 length(coefcorrelacion)
 
 
@@ -65,6 +73,8 @@ length(coefcorrelacion)
 # En vez de armar una columna en MasterData para cada coeficiente de correlacion,
 # vamos a hacer un loop que recorra todo el vector coefcorrelacion y que 
 # vaya calculando la varianza del portafolio. 
+
+
 
 j <- 0
 k <- 0
@@ -111,7 +121,7 @@ ggplot()+
   geom_point(
     data        = data_plot,
     mapping     = aes(x=VarRp, y=ERp, color=escenario),
-    show.legend = FALSE 
+    show.legend = FALSE
   ) +
   geom_point(
     data    = data,
