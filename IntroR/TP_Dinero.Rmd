@@ -1,0 +1,180 @@
+---
+title: "TP de DCB"
+author: "Juan Francisco Gómez"
+date: "13/10/2020"
+output: pdf_document
+---
+
+```{r SETUP, include=FALSE}
+library(tidyverse)  # coleccion de paquetes para ciencia de datos
+library(readxl)    # para leer los excel
+library(lubridate)  # para trabajar con fechas
+library(scales)  # para ajustar escalas de graficos
+
+knitr::opts_chunk$set(fig.width=6, fig.height=4, fig.align = "center")  # tamaño y posicion de los graficos
+
+
+```
+
+
+```{r Importar, message=FALSE, warning=FALSE, include=FALSE}
+reservas_original <- readxl::read_excel(
+  path = "seriese.xls",
+  sheet = "RESERVAS",
+  range = "A10:P4380",
+  col_names = FALSE
+)
+```
+
+
+```{r Ordenar, message=FALSE, warning=FALSE, include=FALSE}
+
+reservas_clean <- reservas_original %>%
+  select(-...2, -...4, -...5,
+         -...6, -...13, -...14, -...15
+         )
+
+
+colnames(reservas_clean) <- c("fecha", "saldo", "variacion_total",
+                              "compra_divisas", "organismos", 
+                              "otras_sector_publico", "efectivo_minimo",
+                              "otros", "fx")
+```
+
+
+```{r Transformar, message=FALSE, warning=FALSE, include=FALSE}
+
+reservas_clean <- reservas_clean %>% 
+  mutate(
+    fecha = as.Date(fecha),     # cambio el formato de la columna fecha
+    otros2 = organismos + otras_sector_publico + efectivo_minimo + otros  # armo un nuevo otros
+  )
+
+# str(reservas_clean)
+
+reservas_tidy <- reservas_clean %>% 
+  pivot_longer(
+    cols = -fecha,
+    names_to = "variable",
+    values_to = "valor"
+  )
+
+reservas_mensual <- reservas_tidy %>% 
+  filter(
+    !variable %in% c("saldo", "fx")
+  ) %>% 
+  mutate(
+    mes = lubridate::floor_date(fecha, "month")
+  ) %>% 
+  group_by(mes, variable) %>% 
+  summarise(
+    valor = sum(valor)
+  ) %>% 
+  ungroup()
+```
+
+
+A continución, gráfico del saldo de las RRII...
+
+
+```{r Visualizacion1, echo=FALSE, message=FALSE, warning=FALSE}
+
+plot1 <- reservas_clean %>%
+  ggplot() +
+  geom_line(
+    mapping = aes(x = fecha, y = saldo)
+  )
+
+print(plot1)
+
+```
+
+
+
+A continución, gráfico de variación de reservas por componente...
+
+
+```{r Visualizacion2, echo=FALSE, message=FALSE, warning=FALSE}
+
+plot2 <- reservas_mensual %>% 
+  filter(variable != "otros2") %>% 
+  ggplot() +
+  geom_line(
+    mapping = aes(x = mes, y = valor)
+  ) +
+  geom_smooth(
+    mapping = aes(x = mes, y = valor),
+    method = "loess"
+  ) +
+  facet_wrap(~variable, scales = "free_y") +
+  geom_hline(
+    yintercept = 0,
+    color = "red"
+  ) +
+  scale_y_continuous(
+    labels = scales::dollar_format(big.mark = ".")
+  ) +
+  labs(
+    title = "Factors de Variación de Reservas Internacionales Brutas",
+    subtitle = "Datos mensuales desde 2003 a 2020",
+    caption = "Fuente: BCRA",
+    x = "", y = ""
+  )
+
+
+print(plot2)
+```
+
+
+
+
+A continuación, un gráfico de 2 componentes: compra de divisas y "otros"...
+
+```{r Visualizacion3, echo=FALSE, message=FALSE, warning=FALSE}
+
+reservas_anual <- reservas_tidy %>% 
+  filter(
+    variable %in% c("compra_divisas", "otros2", "variacion_total")
+  ) %>%  
+  group_by(year = year(fecha), variable) %>%    # se puede crear una columna y agrupar en la misma linea
+  summarise(
+    valor = sum(valor)
+  ) %>%
+  mutate(
+    variable_show = case_when(
+      variable == "compra_divisas" ~ "Compra de divisas",
+      TRUE ~ "Otros factores"
+    ) 
+  ) %>% 
+  ungroup()
+
+
+ggplot() +
+  geom_col(
+    data = reservas_anual %>% filter(variable %in% c("compra_divisas", "otros2")),
+    mapping = aes(x = year, y = valor, fill = variable_show)
+  ) +
+  geom_point(
+    data = reservas_anual %>% filter(variable == "variacion_total"),
+    mapping = aes(x = year, y = valor),
+    color = "black",
+    shape = 18,
+    size = 3
+  ) +
+  labs(
+    title = "2 factores de explicacion de la variación de reservas...",
+    subtitle = "Datos anuales, el rombo indica la variación total del año",
+    caption = "Fuente: BCRA",
+    x = "", y = "",
+    fill = "Fuente de Variación:"
+  ) +
+  scale_y_continuous(
+    labels = scales::dollar_format(big.mark = ".")
+  ) +
+  theme(
+    legend.position = "top",
+    legend.justification = "left"
+  )
+
+```
+
