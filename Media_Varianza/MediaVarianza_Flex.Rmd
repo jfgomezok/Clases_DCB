@@ -1,0 +1,192 @@
+---
+title: "Representacion Grafica Enfoque Media Varianza"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+# load data in 'global' chunk so it can be shared by all users of the dashboard
+if ( !require("pacman") ) install.packages("pacman")
+pacman::p_load(flexdashboard, tidyverse)
+```
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+
+
+```{r}
+sliderInput("n_portafolios", label = "Cantidad de Portafolios:",
+            min = 2, max = 200, value = 2, step = 1)
+
+sliderInput("n_rho", label = "Cantidad de Coeficientes de Correlacion:",
+            min = 2, max = 100, value = 1, step = 1)
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Grafico
+
+```{r}
+renderPlot({
+  
+  
+  
+
+# 1) PARAMETROS DE CARGA -------------------------------------
+
+## datos estadisticos de los activos que usaremos:
+data <- tibble(
+  activo = c("A","B"),
+  R      = c(0.15, 0.03),
+  V      = c(0.05, 0.03)
+)
+
+## Cantidad de Portafolios que vamos a crear para el mismo coeficiente de correlacion:
+n <- input$n_portafolios
+
+## Cantidad de coeficientes de correlacion que vamos a graficar:
+cantcoefcorr <- input$n_rho  # Minimo 2!!
+
+
+# 2) CODIGO  -------------------------------------
+
+
+# Construccion de Matriz de tenencias para las "n" cantidades de posibilidades
+w <-  tibble(
+  wa = seq(from = 1, to = 0, length.out = n),
+  wb = 1 - wa
+)
+
+
+# La "pipa" es el operador "%>%" y se lee "y entonces".
+# La funcion "mutate" sirve para crear o modificar columnas.
+# Agregamos 5 columnas
+
+MasterData <- w %>% 
+  mutate(
+    ERa  = data$R[1],
+    ERb  = data$R[2],
+    ERp  = wa * ERa + wb * ERb,
+    VarA = data$V[1],
+    VarB = data$V[2]
+    )
+
+
+
+
+
+
+# Armo un vector de coeficientes de correlacion
+# Uso la funcion "seq" para ir desde -1 a 1 por un factor que va a determinar
+# cuantos escenarios vamos a construir en base al parametro "cantcoefcorr".
+
+coefcorrelacion <- seq(
+  from = -1,
+  to   = 1,
+  by   = 2/(cantcoefcorr -1)
+)
+
+length(coefcorrelacion)
+
+
+# Ahora tenemos que calcular las varianzas del portafolio.
+# En vez de armar una columna en MasterData para cada coeficiente de correlacion,
+# vamos a hacer un loop que recorra todo el vector coefcorrelacion y que 
+# vaya calculando la varianza del portafolio. 
+
+
+
+j <- 0
+k <- 0
+for (i in coefcorrelacion) {
+  
+  k <- k+1
+  # i <- 0
+  # print(i) 
+  
+  ColName <- paste0("Escenario", k)
+  
+  # i <- 0
+  MasterData <- MasterData %>% 
+    mutate(
+      ColName = (wa^2* VarA)+ (wb^2 * VarB) + (2 * wa * wb * i * VarA^(1/2) * VarB^(1/2) )
+    )
+  
+  colnames(MasterData)[8+j] <- ColName    
+  
+  j <- j+1
+}
+
+# Notar como quedó la base
+# Tenemos varias columnas "escenario" como coefcienes hayamos creado.
+print(MasterData)
+
+# Para graficar, vamos a armar la base en otro formato.
+# la funcion gather junta columnas y las guarda como filas
+# el siguiente resultado es una gran matriz con 3 columnas:
+# ERp, varRp y  que escenario es (dado por una A + un numero)
+# Fijense que tienen todos los escenarios uno abajo del otro,
+# identificados con la columna "variable".
+
+data_plot <- MasterData %>%
+  select(-wa, -wb, -ERa, -ERb, -VarA, -VarB) %>%    # descartamos variables que no nos interesan
+  gather(-ERp, key = "escenario", value = "VarRp") %>%    # reordenamos la matriz
+  select(escenario, ERp, VarRp)
+
+
+
+# por ultimo, a graficar!
+
+ggplot()+  
+  geom_point(
+    data        = data_plot,
+    mapping     = aes(x=VarRp, y=ERp, color=escenario),
+    show.legend = FALSE
+  ) +
+  geom_point(
+    data    = data,
+    mapping = aes(x=V, y = R),
+    size    = 3,
+    color   = "black"
+  )+
+  annotate(
+    geom = 'text',
+    x    = data$V[1],
+    y    = data$R[1],
+    label = "Activo 1",
+    hjust = 0,
+    vjust = 1,
+    size = 5
+  )+
+  annotate(
+    geom = 'text',
+    x    = data$V[2],
+    y    = data$R[2],
+    label = "Activo 2",
+    hjust = 0,
+    vjust = 1,
+    size = 5
+  )+
+  scale_x_continuous(
+    limits = c(0, max(data$V)+0.01)
+  )+
+  labs(
+    title    = "Representación Gráfica del Entorno Media Varianza",
+    subtitle = "2 activos riesgosos",
+    caption  = "Preparado en R por Juan Fracisco Gómez, para el curso de Dinero, Crédito y Bancos",
+    x = "Var(Rp)",
+    y = "E(Rp)"
+  )+
+  theme_minimal(base_size = 16)+
+  theme(
+    plot.title    = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    # plot.caption  = element_text(size = 8),
+    axis.title.x  = element_text(hjust = 1),
+    axis.title.y  = element_text(hjust = 1)
+    )
+
+})
+```
