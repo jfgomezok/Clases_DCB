@@ -1,0 +1,162 @@
+---
+title: "Representacion Grafica del Enfoque Media Varianza"
+author: "Juan Francisco Gomez"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Definiciones:
+
+Considere un portafolio con dos activos financieros: $A$ y $B$, con tenencias equivalentes a $\omega_A$ y $\omega_B$, cuyo retorno viene dado por:
+
+
+$$
+R_p = \omega_A \cdot R_A + \omega_B \cdot R_B
+$$
+
+Sea $E(R_i)$ el retorno esperado del activo $i$. Entonces, el retorno esperado del portafolio será:
+
+$$
+\begin{align}
+E(R_p) &= E \Big( \omega_A \cdot R_A + \omega_B \cdot R_B \Big) \\
+&= E(\omega_A \cdot R_A) + E(\omega_B \cdot R_B) \\
+ &= \omega_A \cdot E(R_A) + \omega_B \cdot E(R_B) \\
+       &= \omega_A \cdot E(R_A) + (1- \omega_A) \cdot E(R_B) \\
+\end{align}
+$$
+
+Mientras que la expresión correspondiente a su varianza resulta:
+
+$$
+\begin{align}
+Var(R_p) = \sigma^2_p &= Var\Big(\omega_A \cdot R_A + (1- \omega_A) \cdot R_B\Big) \\ 
+&= \omega_A^2 \cdot \sigma^2_A + (1- \omega_A)^2 \cdot \sigma^2_B + 2 \cdot \omega_A \cdot (1- \omega_A) \cdot Cov(R_A,R_B)
+\end{align}
+$$
+
+Recordemos que: $\rho_{A,B} = \frac{Cov(R_A, R_B)}{\sigma_A \cdot \sigma_B}$. Por lo tanto, podemos reexpresar la varianza del portafolio como:
+
+$$
+\sigma^2_p = \omega_A^2 \cdot \sigma^2_A + (1- \omega_A)^2 \cdot \sigma^2_B + 2 \cdot \omega_A \cdot (1- \omega_A) \cdot \rho_{A,B} \cdot \sigma_A \cdot \sigma_B 
+$$
+
+Veamos un ejemplo histórico real de un portafolio compuesto por un activo local (depósito en pesos) y un activo externo (depósito en dólares), con tenencias variables según el insumo que de el usuario:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(ggridges)
+library(lubridate)
+library(glue)
+library(scales)
+
+retornos <- read_csv("raw_data/retornos.csv")
+
+# Calculo de media y varianza de un portafolio constituido unicamente por activo local y activo externo, en partes iguales (o.5 cada uno):
+
+
+valores <- retornos %>% 
+  select(fecha:act_ext) %>% 
+  pivot_longer(-fecha, names_to = "variable", values_to = "values") %>% 
+  group_by(variable) %>% 
+  summarise(
+    mean = mean(values),
+    median = median(values),
+    variance = var(values),
+    sd = sd(values)
+  )
+
+
+
+
+
+
+tenencia_A <- 0.5
+
+ret_port <- tenencia_A * valores$mean[1] + (1-tenencia_A) * valores$mean[2]
+var_port <- tenencia_A^2 * valores$variance[1] + 
+              (1-tenencia_A)^2 * valores$variance[2] +
+                2 * tenencia_A * (1-tenencia_A) * cov(retornos$act_local, retornos$act_ext)
+
+
+prep_data <- retornos %>% 
+  select(fecha:act_ext) %>% 
+  mutate(
+    port = act_local*tenencia_A + act_ext*(1-tenencia_A),
+    normal = rnorm(424, mean = 0, sd = 0.05)
+  ) %>% 
+  pivot_longer(-fecha, names_to = "variable", values_to = "values")
+
+
+aux <- prep_data %>% 
+  group_by(variable) %>% 
+  summarise(
+    promedio = mean(values),
+    desv_estandar = sd(values),
+    varianza = desv_estandar^2
+  )
+
+
+knitr::kable(aux)
+  
+
+
+ggplot() +
+  geom_density_ridges(
+    data = prep_data,
+    mapping = aes(x = values, fill = variable, y = variable),
+    quantile_lines = TRUE,
+    quantiles = 2,
+    color = "white"
+  ) +
+  scale_x_continuous(
+    labels = percent_format()
+  ) +
+  labs(
+    title = "Distribución historica de los retornos de un activo local y externo",
+    subtitle = glue("Retornos reales, mensuales, para el período comprendido entre {min(dmy(retornos$fecha))} y {max(dmy(retornos$fecha))}"),
+    caption = "Fuente: Elaboración propia en base a la tesis doctoral de EAC"
+  ) +
+  theme_bw() +
+  theme(
+    axis.title = element_blank(),
+    legend.position = "none"
+  )
+
+  
+ 
+```
+
+Supongamos ahora que:
+
+1.  $\omega_A = \omega_B = 0.5$
+
+2.  $\sigma_A^2 = \sigma_B^2 = \sigma^2$
+
+Entonces, nuestro modelo anterior ahora es:
+
+$$
+\begin{align}
+R_P &= 0.5 \cdot R_A + 0.5 \cdot R_B \\
+E(R_P) &= 0.5 \cdot E(R_A) + 0.5 \cdot E(R_B) \\
+        &= \frac{1}{2} \Big[ E(R_A) + E(R_B) \Big] \\
+Var(R_P) &= \frac{1}{4} \cdot \sigma^2 + \frac{1}{4} \cdot \sigma^2 + 2 \cdot \frac{1}{4} \cdot \rho_{A,B} \cdot \sigma^2 \\
+          &= \frac{1}{2} \cdot \sigma^2 + \frac{1}{2} \cdot \sigma^2 \cdot \rho_{A,B} \\
+&=  \frac{1}{2} \cdot \sigma^2  \cdot \Big[ 1 + \rho_{A,B} \Big]
+\end{align}
+$$
+
+Ahora es crítico entender el rol que juega $\rho$ aquí. Rho es el coeficiente de correlación, e indica la "indica la fuerza y la dirección de una relación lineal y proporcionalidad entre dos variables estadísticas" ([fuente](https://es.wikipedia.org/wiki/Correlaci%C3%B3n)). Rho puede adoptar valores únicamente entre -1 y 1: desde la prefecta correlación negativa hasta la perfecta correlación positiva.
+
+$$
+Var(R_p) = \left\{
+\begin{matrix}
+\sigma^2 \text{ si } \rho_{A,B} = 1 \\
+0 \text{ si } \rho_{A,B} = -1 \\ 
+\frac{\sigma^2}{2} \text{ si } \rho_{A,B} = 0
+\end{matrix}
+\right.
+$$
+
+Vayamos al otro script a jugar un poco con las distintas posibilidades...
