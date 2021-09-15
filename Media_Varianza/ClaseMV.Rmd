@@ -1,10 +1,17 @@
 ---
 title: "Representacion Grafica del Enfoque Media Varianza"
 author: "Juan Francisco Gomez"
+date: "15 de septiembre de 2021"
 output: html_document
 editor_options: 
   chunk_output_type: console
 ---
+
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
 
 Definiciones:
 
@@ -45,6 +52,7 @@ Veamos un ejemplo histórico real de un portafolio compuesto por un activo local
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
+
 library(tidyverse)
 library(ggridges)
 library(lubridate)
@@ -53,22 +61,38 @@ library(scales)
 
 retornos <- read_csv("raw_data/retornos.csv")
 
-# Calculo de media y varianza de un portafolio constituido unicamente por activo local y activo externo, en partes iguales (o.5 cada uno):
+# Calculo de media y varianza de un portafolio constituido unicamente por activo local y activo externo, en partes iguales (0.5 cada uno):
 
 
-valores <- retornos %>% 
+# Paradigma tidyverse!
+
+# atajo para la pipa: ctrl + shift + m
+# atajo para comentar una linea: ctrl + shift + c
+
+
+retornos <- retornos %>% 
+  mutate(
+    fecha = dmy(fecha)
+  )
+
+
+# min(retornos$fecha)
+# max(retornos$fecha)
+
+valores <- retornos %>%
   select(fecha:act_ext) %>% 
-  pivot_longer(-fecha, names_to = "variable", values_to = "values") %>% 
-  group_by(variable) %>% 
+  pivot_longer(-fecha, names_to = "indicator", values_to = "values") %>%
+  group_by(indicator) %>% 
   summarise(
     mean = mean(values),
     median = median(values),
     variance = var(values),
-    sd = sd(values)
+    sd = sd(values),
+    vol_anual = sqrt(252) * sd
   )
 
 
-
+# Retornos reales desde septiembre 1977 a diciembre 2012
 
 
 
@@ -76,8 +100,8 @@ tenencia_A <- 0.5
 
 ret_port <- tenencia_A * valores$mean[1] + (1-tenencia_A) * valores$mean[2]
 var_port <- tenencia_A^2 * valores$variance[1] + 
-              (1-tenencia_A)^2 * valores$variance[2] +
-                2 * tenencia_A * (1-tenencia_A) * cov(retornos$act_local, retornos$act_ext)
+            (1-tenencia_A)^2 * valores$variance[2] +
+            2 * tenencia_A * (1-tenencia_A) * cov(retornos$act_local, retornos$act_ext)
 
 
 prep_data <- retornos %>% 
@@ -96,11 +120,6 @@ aux <- prep_data %>%
     desv_estandar = sd(values),
     varianza = desv_estandar^2
   )
-
-
-knitr::kable(aux)
-  
-
 
 ggplot() +
   geom_density_ridges(
